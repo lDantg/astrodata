@@ -127,8 +127,30 @@ def capturar():
     }
 
 
+CORTE = os.path.join(BASE, "limpeza_local.txt")   # data de corte do botão "Limpar dados"
+
+
+def ler_corte():
+    try:
+        with open(CORTE) as f: return int(f.read().strip() or 0)
+    except Exception:
+        return 0
+
+
+def limpar():
+    """Apaga o histórico local e passa a ignorar coletas anteriores a agora."""
+    with open(CORTE, "w") as f: f.write(str(int(time.time())))
+    c = db()
+    for t in ("game_snap", "feed_pos", "creator_snap", "runs"):
+        c.execute(f"DELETE FROM {t}")
+    c.commit(); c.execute("VACUUM"); c.close()
+    print(f"[{datetime.now():%d/%m %H:%M}] histórico local limpo")
+
+
 def importar(c, snap):
-    """Grava um snapshot no SQLite (ignora se aquele horário já existe)."""
+    """Grava um snapshot no SQLite (ignora se aquele horário já existe ou é anterior à limpeza)."""
+    if snap["ts"] < ler_corte():
+        return False
     if c.execute("SELECT 1 FROM runs WHERE ts=?", (snap["ts"],)).fetchone():
         return False
     run = c.execute("INSERT INTO runs(ts) VALUES(?)", (snap["ts"],)).lastrowid
@@ -323,6 +345,9 @@ class H(SimpleHTTPRequestHandler):
         if u.path == "/api/dados":
             h = int(parse_qs(u.query).get("horas", ["24"])[0])
             return self._json({**dados(h), "status": status})
+        if u.path == "/api/limpar":
+            limpar()
+            return self._json({"ok": True})
         if u.path == "/api/coletar":
             threading.Thread(target=atualizar_seguro, daemon=True).start()
             return self._json({"ok": True})
