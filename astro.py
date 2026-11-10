@@ -15,7 +15,7 @@ from urllib.parse import urlparse, parse_qs
 # ---------------- configuração ----------------
 MEU_USUARIO = "dantg"
 OUTROS_PERFIS = []          # ex.: ["fulano", "ciclano"] para acompanhar outros criadores
-GITHUB_REPO = ""            # ex.: "seu-usuario/astrocade-dados". Vazio = coleta local no PC
+GITHUB_REPO = "lDantg/astrodata"   # vazio ("") = coleta local no PC
 GITHUB_TOKEN = ""           # só se o repositório for PRIVADO (token de leitura)
 INTERVALO_MIN = 60          # modo local: minutos entre coletas
 SYNC_MIN = 15               # modo nuvem: minutos entre downloads do GitHub
