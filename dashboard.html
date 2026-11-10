@@ -93,7 +93,8 @@ const dt=ts=>new Date(ts*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-di
 const slug=t=>String(t||'game').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'game';
 const gameUrl=g=>`https://www.astrocade.com/games/${slug(g.title)}/${g.id}`;
 const gainTxt=v=>v>0?`<span class="up">+${fmt(v)}</span>`:'<span class="zero">0</span>';
-let horas=24, cat='trending', selId=null, D=null;
+let horas=24, cat='', rk='trending', selId=null, D=null;
+const RK={trending:'Trending',recommended_for_you:'Recommended',top_picks:"Players' Choice"};
 
 /* Converte série cumulativa [[ts,total],...] em barras de plays por hora (ou por dia no 7d).
    Cada intervalo entre coletas é distribuído proporcionalmente pelas horas que cobre. */
@@ -188,17 +189,24 @@ function render(){
     <h3 style="font-size:13px;margin-bottom:8px">Plays por ${horas>=168?'dia':'hora'}</h3>${barChart('ch-g',sel.serie,horas)}`:'<div class="empty">Nenhum jogo encontrado.</div>'}</div>
 
   <div class="sec-title"><h2>Mercado</h2><span class="meta">o que está bombando no Astrocade</span></div>
-  <div class="card c6"><div class="chead"><div><h3>Trending agora</h3><div class="sub">Ordem da linha "Discover More" da home</div></div></div>${table(d.trending,true)}</div>
-  <div class="card c6"><div class="chead"><div><h3>Jogos que mais ganharam plays</h3><div class="sub">Em ${lbl}, entre os jogos vistos na home</div></div></div>${table(d.top_games,false)}</div>
-  <div class="card c6"><div class="chead"><div><h3>Criadores em alta</h3><div class="sub">Plays ganhos em ${lbl}</div></div></div><div class="scroll"><table>
+  <div class="card c12"><div class="chead"><div><h3>Top 50 · ${RK[rk]}</h3><div class="sub">Todo jogo que já apareceu nesta lista, ordenado por plays ganhos em ${lbl} · ${d.rankings[rk].rastreados} rastreados · ${d.rankings[rk].agora} na lista agora</div></div>
+    <div class="seg" id="segrk">${Object.keys(RK).map(c=>`<button data-c="${c}" class="${c===rk?'on':''}">${RK[c]}</button>`).join('')}</div></div>
+    ${rankTable(d.rankings[rk].top)}</div>
+  <div class="card c6"><div class="chead"><div><h3>Jogos que mais ganharam plays</h3><div class="sub">Top 50 em ${lbl}, entre todos os jogos coletados</div></div></div>${table(d.top_games,false)}</div>
+  <div class="card c6"><div class="chead"><div><h3>Criadores em alta</h3><div class="sub">Top 50 por plays ganhos em ${lbl}</div></div></div><div class="scroll"><table>
     <tr><th></th><th>Criador</th><th class="n">Ganho</th><th class="n">Total</th><th class="n">Seguid.</th></tr>
     ${d.top_creators.map((c,i)=>`<tr class="${c.user===d.user?'me':''}"><td class="rk">${i+1}</td><td><div class="g"><img class="av" loading="lazy" src="${esc(c.avatar)}" alt=""><a href="https://www.astrocade.com/profile/${esc(c.user)}" target="_blank">@${esc(c.user)}</a></div></td><td class="n">${gainTxt(c.gain)}</td><td class="n">${k(c.total)}</td><td class="n">${k(c.followers)}</td></tr>`).join('')}
   </table></div></div>
   <div class="card c6"><div class="chead"><div><h3>Categorias da home</h3><div class="sub">Ordem atual em cada linha</div></div><select id="selc">${cats.map(c=>`<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select></div>${table(d.categorias[cat]||[],true)}</div>`;
 
   app.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{selId=r.dataset.id;const y=scrollY;render();scrollTo(0,y)});
+  document.querySelectorAll('#segrk button').forEach(b=>b.onclick=()=>{rk=b.dataset.c;const y=scrollY;render();scrollTo(0,y)});
   const sc=document.getElementById('selc');if(sc)sc.onchange=()=>{cat=sc.value;const y=scrollY;render();scrollTo(0,y)};
   drawBars();
+}
+function rankTable(list){
+  if(!list.length) return '<div class="empty">Sem dados ainda.</div>';
+  return `<div class="scroll" style="max-height:620px"><table><tr><th></th><th>Jogo</th><th>Na lista agora</th><th class="n">Ganho</th><th class="n">Plays</th><th class="n">Likes</th></tr>${list.map((g,i)=>`<tr class="${g.user===D.user?'me':''}"><td class="rk">${i+1}</td><td><div class="g"><img loading="lazy" src="${esc(g.thumb)}" alt=""><div style="min-width:0"><div class="t"><a href="${gameUrl(g)}" target="_blank">${esc(g.title)}</a></div><div class="u">@${esc(g.user)}</div></div></div></td><td>${g.pos?`<span class="tag">#${g.pos}</span>`:'<span class="meta">fora</span>'}</td><td class="n">${gainTxt(g.gain)}</td><td class="n">${k(g.plays)}</td><td class="n">${k(g.likes)}</td></tr>`).join('')}</table></div>`;
 }
 function table(list,pos){
   if(!list.length) return '<div class="empty">Sem dados.</div>';

@@ -20,7 +20,7 @@ GITHUB_TOKEN = ""           # só se o repositório for PRIVADO (token de leitur
 INTERVALO_MIN = 60          # modo local: minutos entre coletas
 SYNC_MIN = 15               # modo nuvem: minutos entre downloads do GitHub
 PORTA = 8765
-SCROLLS_HOME = 8
+TOP = 50                    # tamanho dos rankings
 # -----------------------------------------------
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -42,6 +42,9 @@ def db():
     CREATE TABLE IF NOT EXISTS creator_snap(run_id INT, username TEXT, total_plays INT,
         followers INT, avatar TEXT, PRIMARY KEY(run_id, username));
     CREATE TABLE IF NOT EXISTS arquivos(nome TEXT PRIMARY KEY, sha TEXT);
+    CREATE TABLE IF NOT EXISTS meta_jogo(game_id TEXT PRIMARY KEY, title TEXT, username TEXT,
+        thumb TEXT, created_at INT);
+    CREATE TABLE IF NOT EXISTS meta_avatar(username TEXT PRIMARY KEY, avatar TEXT);
     CREATE INDEX IF NOT EXISTS ix_gs ON game_snap(game_id, run_id);
     CREATE INDEX IF NOT EXISTS ix_cs ON creator_snap(username, run_id);
     """)
@@ -49,84 +52,6 @@ def db():
 
 
 # ---------------- coleta ----------------
-def _is_game(o):
-    return isinstance(o, dict) and "gameId" in o and "plays" in o and "title" in o
-
-
-def capturar():
-    """Abre o site num navegador anônimo e devolve um snapshot (dict)."""
-    from playwright.sync_api import sync_playwright
-    games, creators, feed = {}, {}, []
-
-    def add_game(g, cat=None):
-        games[g["gameId"]] = g
-        if g.get("username") and g.get("ownerTotalPlays") is not None:
-            creators.setdefault(g["username"], [g.get("ownerTotalPlays"),
-                                g.get("ownerFollowerCount"), g.get("avatarHeadshotUrl")])
-        if cat:
-            feed.append((cat, g["gameId"]))
-
-    def on_resp(r):
-        if API not in r.url or "client-events" in r.url:
-            return
-        try:
-            data = r.json()
-        except Exception:
-            return
-        u = urlparse(r.url)
-        q = parse_qs(u.query)
-        if u.path.endswith("/users") and isinstance(data, dict) and data.get("username"):
-            creators[data["username"]] = [data.get("totalPlays"), data.get("followerCount"),
-                                          data.get("profilePicture")]
-            return
-        if u.path.endswith("/feed") and isinstance(data, dict):
-            by_cat = (data.get("feed_config") or {}).get("gamesByCategory") or {}
-            for c, blk in by_cat.items():
-                for g in blk.get("games", []):
-                    if _is_game(g): add_game(g, c)
-            cat = q.get("category", [None])[0]
-            if cat:
-                for g in data.get("games", []):
-                    if _is_game(g): add_game(g, cat)
-                return
-
-        def walk(o):
-            if _is_game(o): add_game(o)
-            elif isinstance(o, dict): [walk(v) for v in o.values()]
-            elif isinstance(o, list): [walk(v) for v in o]
-        walk(data)
-
-    with sync_playwright() as p:
-        b = p.chromium.launch()
-        pg = b.new_page(viewport={"width": 1400, "height": 1000})
-        pg.on("response", on_resp)
-        pg.goto("https://www.astrocade.com/", wait_until="load", timeout=60000)
-        pg.wait_for_timeout(4000)
-        for _ in range(SCROLLS_HOME):
-            pg.mouse.wheel(0, 2500); pg.wait_for_timeout(1500)
-        for u in [MEU_USUARIO] + OUTROS_PERFIS:
-            pg.goto(f"https://www.astrocade.com/profile/{u}", wait_until="load", timeout=60000)
-            pg.wait_for_timeout(4000)
-            for _ in range(3):
-                pg.mouse.wheel(0, 3000); pg.wait_for_timeout(1500)
-        b.close()
-
-    seen, pos, fl = set(), {}, []
-    for cat, gid in feed:
-        if (cat, gid) in seen: continue
-        seen.add((cat, gid)); pos[cat] = pos.get(cat, 0) + 1
-        fl.append([cat, pos[cat], gid])
-    return {
-        "ts": int(time.time()),
-        "games": [[g["gameId"], g.get("title"), g.get("username"), g.get("plays"),
-                   g.get("likeCount"), g.get("commentsCount"), g.get("shares"),
-                   g.get("thumbnailUrl"), g.get("firstPublishedTimestamp") or g.get("createdAt")]
-                  for g in games.values()],
-        "feed": fl,
-        "creators": [[u] + v for u, v in creators.items()],
-    }
-
-
 CORTE = os.path.join(BASE, "limpeza_local.txt")   # data de corte do botão "Limpar dados"
 
 
@@ -147,18 +72,37 @@ def limpar():
     print(f"[{datetime.now():%d/%m %H:%M}] histórico local limpo")
 
 
+def carregar_meta(c, meta):
+    """Cadastro de jogos/avatares (data/jogos.json) usado pelas coletas compactas (v2)."""
+    c.executemany("INSERT OR REPLACE INTO meta_jogo VALUES(?,?,?,?,?)",
+                  [[gid] + list(v) for gid, v in meta.get("jogos", {}).items()])
+    c.executemany("INSERT OR REPLACE INTO meta_avatar VALUES(?,?)", list(meta.get("avatares", {}).items()))
+
+
+def _expandir_v2(c, snap):
+    m = {r[0]: r for r in c.execute("SELECT * FROM meta_jogo")}
+    av = dict(c.execute("SELECT * FROM meta_avatar").fetchall())
+    games = []
+    for gid, plays, likes, com, sh in snap["games"]:
+        _, title, user, thumb, created = m.get(gid, (gid, None, None, None, None))
+        games.append([gid, title, user, plays, likes, com, sh, thumb, created])
+    creators = [[u, tot, fol, av.get(u)] for u, tot, fol in snap["creators"]]
+    return games, creators
+
+
 def importar(c, snap):
     """Grava um snapshot no SQLite (ignora se aquele horário já existe ou é anterior à limpeza)."""
     if snap["ts"] < ler_corte():
         return False
     if c.execute("SELECT 1 FROM runs WHERE ts=?", (snap["ts"],)).fetchone():
         return False
+    games, creators = _expandir_v2(c, snap) if snap.get("v") == 2 else (snap["games"], snap["creators"])
     run = c.execute("INSERT INTO runs(ts) VALUES(?)", (snap["ts"],)).lastrowid
     c.executemany("INSERT OR REPLACE INTO game_snap VALUES(?,?,?,?,?,?,?,?,?,?)",
-                  [[run] + g for g in snap["games"]])
+                  [[run] + g for g in games])
     c.executemany("INSERT INTO feed_pos VALUES(?,?,?,?)", [[run] + f for f in snap["feed"]])
     c.executemany("INSERT OR REPLACE INTO creator_snap VALUES(?,?,?,?,?)",
-                  [[run] + cr for cr in snap["creators"]])
+                  [[run] + cr for cr in creators])
     return True
 
 
@@ -170,16 +114,24 @@ def salvar_arquivo(snap):
 
 
 def coletar():
-    snap = capturar()
+    from coletor import capturar
+    snap = capturar(MEU_USUARIO, OUTROS_PERFIS, DATA)
     salvar_arquivo(snap)
-    c = db(); importar(c, snap); c.commit(); c.close()
+    c = db(); _meta_local(c); importar(c, snap); c.commit(); c.close()
     print(f"[{datetime.now():%d/%m %H:%M}] coleta: {len(snap['games'])} jogos, "
           f"{len(snap['creators'])} criadores, {len({f[0] for f in snap['feed']})} categorias")
 
 
+def _meta_local(c):
+    try:
+        with open(os.path.join(DATA, "jogos.json"), encoding="utf-8") as f: carregar_meta(c, json.load(f))
+    except FileNotFoundError:
+        pass
+
+
 def importar_pasta_local():
     """Importa os .jsonl da pasta data/ (útil depois de baixar ou copiar arquivos)."""
-    c = db(); n = 0
+    c = db(); n = 0; _meta_local(c)
     for fn in sorted(glob.glob(os.path.join(DATA, "*.jsonl"))):
         with open(fn, encoding="utf-8") as f:
             for line in f:
@@ -202,14 +154,22 @@ def sincronizar():
     lista = json.loads(_get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/data"))
     c = db(); novos = 0
     conhecidos = {r["nome"]: r["sha"] for r in c.execute("SELECT * FROM arquivos")}
+    import base64
+
+    def baixar(f):
+        conteudo = json.loads(_get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/{f['name']}"))
+        return base64.b64decode(conteudo["content"]).decode("utf-8") if conteudo.get("content") \
+            else _get(conteudo["download_url"]).decode("utf-8")
+
+    # o cadastro (jogos.json) vem antes das coletas
+    for f in lista:
+        if f["name"] == "jogos.json" and conhecidos.get(f["name"]) != f["sha"]:
+            carregar_meta(c, json.loads(baixar(f)))
+            c.execute("INSERT OR REPLACE INTO arquivos VALUES(?,?)", (f["name"], f["sha"]))
     for f in sorted(lista, key=lambda x: x["name"]):
         if not f["name"].endswith(".jsonl") or conhecidos.get(f["name"]) == f["sha"]:
             continue
-        raw = _get(f"https://api.github.com/repos/{GITHUB_REPO}/contents/data/{f['name']}")
-        conteudo = json.loads(raw)
-        import base64
-        texto = base64.b64decode(conteudo["content"]).decode("utf-8") if conteudo.get("content") \
-            else _get(conteudo["download_url"]).decode("utf-8")
+        texto = baixar(f)
         for line in texto.splitlines():
             if line.strip() and importar(c, json.loads(line)): novos += 1
         c.execute("INSERT OR REPLACE INTO arquivos VALUES(?,?)", (f["name"], f["sha"]))
@@ -261,12 +221,21 @@ def dados(horas=24):
                 "plays": i.get("plays"), "likes": i.get("likes"), "thumb": i.get("thumb"),
                 "gain": d.get("gain", 0), "hours": d.get("hours", 0), **extra}
 
-    trending = [g(r["game_id"], pos=r["pos"]) for r in c.execute(
-        "SELECT * FROM feed_pos WHERE run_id=? AND category='trending' ORDER BY pos", (run,))]
+    # rankings top 50: todo jogo que já apareceu na categoria (rastreado), ordenado pelo ganho
+    rankings = {}
+    for cat in ("trending", "recommended_for_you", "top_picks"):
+        agora = {r["game_id"]: r["pos"] for r in c.execute(
+            "SELECT game_id, pos FROM feed_pos WHERE run_id=? AND category=?", (run, cat))}
+        ids = [r[0] for r in c.execute("SELECT DISTINCT game_id FROM feed_pos WHERE category=?", (cat,))]
+        gd.update(_delta(c, "game_snap", "game_id", "plays", [i for i in ids if i not in gd], horas))
+        lst = [g(i, pos=agora.get(i)) for i in ids if i in info]
+        lst.sort(key=lambda x: (x["gain"], x["plays"] or 0), reverse=True)
+        rankings[cat] = {"agora": len(agora), "rastreados": len(lst), "top": lst[:TOP]}
     cats = {}
-    for r in c.execute("SELECT category, game_id, pos FROM feed_pos WHERE run_id=? ORDER BY pos", (run,)):
-        cats.setdefault(r["category"], []).append(g(r["game_id"], pos=r["pos"]))
-    top_games = sorted((g(x) for x in recent), key=lambda x: x["gain"], reverse=True)[:25]
+    for r in c.execute("SELECT category, game_id, pos FROM feed_pos WHERE run_id=? AND category LIKE 'home:%' "
+                       "ORDER BY pos", (run,)):
+        cats.setdefault(r["category"][5:], []).append(g(r["game_id"], pos=r["pos"]))
+    top_games = sorted((g(x) for x in recent), key=lambda x: x["gain"], reverse=True)[:TOP]
 
     users = [r[0] for r in c.execute("""SELECT DISTINCT username FROM creator_snap cs JOIN runs r
              ON r.id=cs.run_id WHERE r.ts > ?""", (janela,))]
@@ -279,7 +248,7 @@ def dados(horas=24):
                             "followers": cinfo[u]["followers"], "avatar": cinfo[u]["avatar"],
                             "gain": cd.get(u, {}).get("gain", 0)}
                            for u in users if u in cinfo),
-                          key=lambda x: (x["gain"], x["total"] or 0), reverse=True)[:25]
+                          key=lambda x: (x["gain"], x["total"] or 0), reverse=True)[:TOP]
 
     mine_ids = [r[0] for r in c.execute(
         "SELECT DISTINCT game_id FROM game_snap WHERE username=?", (MEU_USUARIO,))]
@@ -310,7 +279,7 @@ def dados(horas=24):
             "me": {"total": me.get("total_plays"), "followers": me.get("followers"),
                    "avatar": me.get("avatar"), "gain": cd.get(MEU_USUARIO, {}).get("gain", 0),
                    "serie": total_serie},
-            "trending": trending, "categorias": cats, "top_games": top_games,
+            "rankings": rankings, "categorias": cats, "top_games": top_games,
             "top_creators": top_creators, "mine": mine}
 
 
