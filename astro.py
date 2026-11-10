@@ -175,6 +175,7 @@ def sincronizar():
         c.execute("INSERT OR REPLACE INTO arquivos VALUES(?,?)", (f["name"], f["sha"]))
     c.commit(); c.close()
     print(f"[{datetime.now():%d/%m %H:%M}] sincronizado com GitHub: {novos} coletas novas")
+    return novos
 
 
 # ---------------- dados para a dashboard ----------------
@@ -287,17 +288,32 @@ def dados(horas=24):
 status = {"coletando": False, "erro": None}
 
 
+trava = threading.Lock()
+
+
 def atualizar_seguro():
-    """Modo nuvem: baixa do GitHub. Modo local: coleta aqui."""
-    if status["coletando"]: return
+    """Modo nuvem: baixa do GitHub. Modo local: coleta aqui. Devolve nº de coletas novas."""
+    if not trava.acquire(blocking=False): return None
     status["coletando"] = True
     try:
-        sincronizar() if NUVEM else coletar()
+        n = sincronizar() if NUVEM else (coletar() or 1)
         status["erro"] = None
+        return n
     except Exception as e:
         status["erro"] = str(e)[:200]; print("ERRO:", e)
+        return None
     finally:
-        status["coletando"] = False
+        status["coletando"] = False; trava.release()
+
+
+def disparar_coleta_github():
+    """Pede ao GitHub Actions uma coleta imediata (usa o GitHub CLI já logado neste PC)."""
+    import shutil, subprocess
+    gh = shutil.which("gh") or r"C:\Program Files\GitHub CLI\gh.exe"
+    r = subprocess.run([gh, "workflow", "run", "coletar.yml", "-R", GITHUB_REPO],
+                       capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout).strip()[:200])
 
 
 class H(SimpleHTTPRequestHandler):
@@ -317,9 +333,17 @@ class H(SimpleHTTPRequestHandler):
         if u.path == "/api/limpar":
             limpar()
             return self._json({"ok": True})
+        if u.path == "/api/atualizar":          # baixa agora as coletas novas do GitHub
+            n = atualizar_seguro()
+            return self._json({"ok": n is not None, "novos": n, "erro": status["erro"]})
         if u.path == "/api/coletar":
-            threading.Thread(target=atualizar_seguro, daemon=True).start()
-            return self._json({"ok": True})
+            if not NUVEM:
+                threading.Thread(target=atualizar_seguro, daemon=True).start()
+                return self._json({"ok": True})
+            try:
+                disparar_coleta_github(); return self._json({"ok": True})
+            except Exception as e:
+                return self._json({"ok": False, "erro": str(e)})
         if u.path in ("/", ""):
             self.path = "/dashboard.html"
         if self.path.split("?")[0] != "/dashboard.html":

@@ -27,6 +27,7 @@ header{position:sticky;top:0;z-index:10;backdrop-filter:blur(14px);background:co
 .seg button.on{background:var(--soft);color:var(--accent);font-weight:600}
 .btn{font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:10px;border:0;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
 .btn:disabled{opacity:.6;cursor:wait}
+.btn.ghost2{background:var(--soft);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
 .btn.ghost{background:var(--card);color:var(--ink2);border:1px solid var(--line)}.btn.ghost:hover{color:#ff6b6b;border-color:#ff6b6b}
 select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
 main{max-width:1320px;margin:0 auto;padding:24px;display:grid;gap:18px;grid-template-columns:repeat(12,1fr)}
@@ -81,7 +82,8 @@ tr.me td{background:var(--soft)}
   <div class="ctl">
     <div class="seg" id="seg"><button data-h="6">6h</button><button data-h="24" class="on">24h</button><button data-h="48">48h</button><button data-h="168">7d</button></div>
     <button class="btn ghost" id="limpar" title="Apaga o histórico local da dashboard">Limpar dados</button>
-    <button class="btn" id="coletar">Coletar agora</button>
+    <button class="btn ghost2" id="atualizar" title="Baixa agora as coletas novas do GitHub">Atualizar</button>
+    <button class="btn" id="coletar" title="Pede ao GitHub uma coleta imediata (~2 min)">Coletar agora</button>
   </div>
 </div></header>
 <main id="app"></main>
@@ -150,7 +152,7 @@ function lastHourGain(serie){const {b}=buckets(serie,24);const done=b.slice(0,-1
 function render(){
   const d=D,app=document.getElementById('app');
   if(d.vazio){app.innerHTML=`<div class="card c12 empty">Nenhuma coleta ainda. Clique em <b>Coletar agora</b> (leva ~1 minuto).</div>`;return}
-  document.getElementById('coletar').textContent=d.nuvem?'Sincronizar agora':'Coletar agora';
+  document.getElementById('atualizar').style.display=d.nuvem?'':'none';
   document.getElementById('meta').textContent=`última coleta ${dt(d.last_ts)} · ${d.runs} coletas · `+(d.nuvem?`GitHub Actions (${d.repo})`:`automática a cada ${d.intervalo} min`)+(d.status.coletando?' · coletando…':'')+(d.status.erro?' · ERRO: '+d.status.erro:'');
   document.getElementById('coletar').disabled=d.status.coletando;
   const lbl=horas>=168?'7 dias':horas+'h', pouco=(Date.now()/1000-d.first_ts)/3600<horas;
@@ -214,7 +216,24 @@ function table(list,pos){
 }
 async function load(){D=await (await fetch('/api/dados?horas='+horas)).json();const y=scrollY;render();scrollTo(0,y)}
 document.getElementById('seg').onclick=e=>{const b=e.target.closest('button');if(!b)return;horas=+b.dataset.h;document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b));load()};
-document.getElementById('coletar').onclick=async()=>{await fetch('/api/coletar');document.getElementById('coletar').disabled=true;document.getElementById('meta').textContent='coletando… (≈1 min)';setTimeout(load,70000)};
+const meta=t=>document.getElementById('meta').textContent=t;
+async function atualizar(silencioso){
+  const b=document.getElementById('atualizar');b.disabled=true;b.textContent='Atualizando…';
+  try{const r=await (await fetch('/api/atualizar')).json();await load();
+    if(!silencioso||r.novos) meta(r.ok?(r.novos?`✓ ${r.novos} coleta${r.novos>1?'s':''} nova${r.novos>1?'s':''} do GitHub`:'✓ Nenhuma coleta nova no GitHub por enquanto'):'Erro ao atualizar: '+(r.erro||'tente de novo'));
+    return r}
+  finally{b.disabled=false;b.textContent='Atualizar'}
+}
+document.getElementById('atualizar').onclick=()=>atualizar(false);
+document.getElementById('coletar').onclick=async()=>{
+  const b=document.getElementById('coletar');b.disabled=true;
+  const r=await (await fetch('/api/coletar')).json();
+  if(!r.ok){meta('Erro ao pedir coleta: '+r.erro);b.disabled=false;return}
+  if(!D||!D.nuvem){meta('coletando… (≈1 min)');setTimeout(()=>{b.disabled=false;load()},70000);return}
+  meta('Coleta pedida ao GitHub… atualizando automaticamente em ~2 min');
+  let tent=0;const t=setInterval(async()=>{tent++;const x=await atualizar(true);
+    if((x&&x.novos)||tent>=6){clearInterval(t);b.disabled=false;if(!(x&&x.novos))meta('A coleta ainda não chegou. Clique em Atualizar em alguns minutos.')}},45000);
+};
 document.getElementById('limpar').onclick=async()=>{
   if(!confirm('Apagar todo o histórico da dashboard?\n\nOs gráficos recomeçam a partir da próxima coleta. Os arquivos no GitHub não são apagados, mas as coletas anteriores a agora deixam de ser importadas.'))return;
   await fetch('/api/limpar');selId=null;load()};
