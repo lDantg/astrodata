@@ -338,8 +338,14 @@ if __name__ == "__main__":
         coletar(); sys.exit()
     if len(sys.argv) > 1 and sys.argv[1] == "importar":
         print(importar_pasta_local(), "coletas importadas"); sys.exit()
+    class Srv(ThreadingHTTPServer):
+        allow_reuse_address = False   # no Windows, True deixaria várias cópias na mesma porta
+    try:
+        srv = Srv(("127.0.0.1", PORTA), H)
+    except OSError:
+        print(f"A dashboard já está aberta em outra janela. Abrindo http://localhost:{PORTA}")
+        webbrowser.open(f"http://localhost:{PORTA}"); sys.exit()
     threading.Thread(target=loop, daemon=True).start()
-    srv = ThreadingHTTPServer(("127.0.0.1", PORTA), H)
     modo = f"baixando do GitHub ({GITHUB_REPO}) a cada {SYNC_MIN} min" if NUVEM \
         else f"coletando aqui a cada {INTERVALO_MIN} min"
     print(f"Dashboard em http://localhost:{PORTA}  ({modo}; Ctrl+C para sair)")
