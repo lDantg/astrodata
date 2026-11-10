@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Astrocade Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0f14;--bg2:#12151c;--card:#171a23;--card2:#1d212c;--ink:#f1f3f7;--ink2:#a9b0bf;--muted:#6f7687;
+  --line:#262b37;--accent:#7c6cff;--accent2:#4fc3ff;--soft:rgba(124,108,255,.14);--up:#3ddc97;--warn:#ffb547;
+  --shadow:0 1px 0 rgba(255,255,255,.03) inset,0 8px 24px rgba(0,0,0,.25)}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){
+  --bg:#f3f4f8;--bg2:#eceef4;--card:#fff;--card2:#f7f8fb;--ink:#151821;--ink2:#4c5466;--muted:#8a91a1;
+  --line:#e3e6ee;--accent:#5b4ae6;--accent2:#1a9bd7;--soft:rgba(91,74,230,.09);--up:#12965f;--shadow:0 1px 2px rgba(20,24,40,.05),0 6px 20px rgba(20,24,40,.05)}}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 500px at 15% -10%,rgba(124,108,255,.18),transparent 60%),radial-gradient(900px 400px at 100% 0,rgba(79,195,255,.10),transparent 60%),var(--bg);background-attachment:fixed;color:var(--ink);font:14px/1.5 Inter,system-ui,Segoe UI,sans-serif;min-height:100vh}
+a{color:inherit;text-decoration:none}a:hover{color:var(--accent)}
+header{position:sticky;top:0;z-index:10;backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg) 75%,transparent);border-bottom:1px solid var(--line)}
+.hwrap{max-width:1320px;margin:0 auto;padding:14px 24px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:700;color:#fff}
+.brand b{font-size:16px}.meta{color:var(--muted);font-size:12px}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;color:var(--ink2);padding:6px 12px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}
+.seg button.on{background:var(--soft);color:var(--accent);font-weight:600}
+.btn{font:inherit;font-size:13px;font-weight:600;padding:8px 14px;border-radius:10px;border:0;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.btn:disabled{opacity:.6;cursor:wait}
+select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+main{max-width:1320px;margin:0 auto;padding:24px;display:grid;gap:18px;grid-template-columns:repeat(12,1fr)}
+.sec-title{grid-column:span 12;display:flex;align-items:baseline;gap:10px;margin:14px 0 -4px}
+.sec-title h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0;box-shadow:var(--shadow)}
+.card h3{font-size:15px;margin:0;font-weight:600}.card .sub{color:var(--muted);font-size:12px}
+.chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}.c3{grid-column:span 3}
+@media (max-width:1050px){.c8,.c7,.c6,.c5,.c4{grid-column:span 12}.c3{grid-column:span 6}}
+@media (max-width:640px){main{padding:16px}.hwrap{padding:12px 16px}.c3{grid-column:span 12}}
+.hero{display:flex;gap:16px;align-items:center}
+.hero img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--accent)}
+.kpi .l{color:var(--ink2);font-size:12px;font-weight:500}.kpi .v{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .d{font-size:12px;margin-top:2px}
+.up{color:var(--up);font-weight:600}.zero{color:var(--muted)}
+.chart{position:relative}.chart svg{display:block;width:100%}
+.tip{position:absolute;pointer-events:none;background:var(--card2);border:1px solid var(--line);color:var(--ink);font-size:12px;padding:7px 10px;border-radius:8px;white-space:nowrap;transform:translate(-50%,calc(-100% - 10px));display:none;box-shadow:0 6px 18px rgba(0,0,0,.3);z-index:3}
+.tip b{font-size:13px}
+.empty{color:var(--muted);padding:28px 10px;text-align:center;font-size:13px}
+.note{grid-column:span 12;background:var(--soft);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--ink2)}
+/* ranking dos meus jogos */
+.perf{display:flex;flex-direction:column;gap:6px;max-height:520px;overflow:auto;margin:0 -6px;padding:0 6px}
+.prow{display:grid;grid-template-columns:22px 52px 1fr auto;gap:12px;align-items:center;padding:8px 10px;border-radius:12px;cursor:pointer;border:1px solid transparent;transition:background .15s}
+.prow:hover{background:var(--card2)}.prow.sel{background:var(--soft);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.prow img{width:52px;height:39px;object-fit:cover;border-radius:8px;background:var(--line)}
+.prow .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .m{color:var(--muted);font-size:12px;display:flex;gap:10px;flex-wrap:wrap}
+.prow .r{text-align:right;font-variant-numeric:tabular-nums}
+.rk{color:var(--muted);font-size:12px;font-weight:600;text-align:center}
+.mbar{height:4px;border-radius:2px;background:var(--line);margin-top:6px;overflow:hidden}.mbar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;background:var(--soft);color:var(--accent);font-weight:500}
+.gdet{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.gdet img{width:96px;height:72px;object-fit:cover;border-radius:10px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--card2);border-radius:10px;padding:8px 10px}.stat .l{font-size:11px;color:var(--muted)}.stat .v{font-weight:600;font-variant-numeric:tabular-nums}
+/* listas do mercado */
+table{width:100%;border-collapse:collapse}td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.me td{background:var(--soft)}
+.g{display:flex;gap:10px;align-items:center;min-width:0}.g img{width:42px;height:32px;object-fit:cover;border-radius:7px;flex:none;background:var(--line)}
+.g .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}.g .u{color:var(--muted);font-size:12px}
+.av{width:28px!important;height:28px!important;border-radius:50%!important}
+.scroll{overflow:auto;max-height:470px}
+</style>
+</head>
+<body>
+<header><div class="hwrap">
+  <div class="brand"><div class="logo">A</div><div><b>Astrocade Dashboard</b><div class="meta" id="meta">carregando…</div></div></div>
+  <div class="ctl">
+    <div class="seg" id="seg"><button data-h="6">6h</button><button data-h="24" class="on">24h</button><button data-h="48">48h</button><button data-h="168">7d</button></div>
+    <button class="btn" id="coletar">Coletar agora</button>
+  </div>
+</div></header>
+<main id="app"></main>
+<script>
+const fmt=n=>n==null?'–':Math.round(n).toLocaleString('pt-BR');
+const k=n=>n==null?'–':Math.abs(n)>=1e6?(n/1e6).toFixed(1).replace('.',',')+'M':Math.abs(n)>=1e3?(n/1e3).toFixed(1).replace('.',',')+'K':String(Math.round(n));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dt=ts=>new Date(ts*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const slug=t=>String(t||'game').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'game';
+const gameUrl=g=>`https://www.astrocade.com/games/${slug(g.title)}/${g.id}`;
+const gainTxt=v=>v>0?`<span class="up">+${fmt(v)}</span>`:'<span class="zero">0</span>';
+let horas=24, cat='trending', selId=null, D=null;
+
+/* Converte série cumulativa [[ts,total],...] em barras de plays por hora (ou por dia no 7d).
+   Cada intervalo entre coletas é distribuído proporcionalmente pelas horas que cobre. */
+function buckets(serie, h){
+  const step=h>=168?86400:3600, now=Date.now()/1000;
+  const align=t=>step===86400?(()=>{const d=new Date(t*1000);d.setHours(0,0,0,0);return d/1000})():Math.floor(t/3600)*3600;
+  const end=align(now), n=h>=168?7:h, start=end-(n-1)*step;
+  const b=[];for(let i=0;i<n;i++)b.push({t:start+i*step,v:0,has:false});
+  for(let i=1;i<serie.length;i++){
+    const [t0,v0]=serie[i-1],[t1,v1]=serie[i],dv=Math.max(0,v1-v0);if(t1<=t0)continue;
+    for(const x of b){const a=Math.max(t0,x.t),z=Math.min(t1,x.t+step);if(z>a){x.v+=dv*(z-a)/(t1-t0);x.has=true}}
+  }
+  return {b,step};
+}
+function barChart(id,serie,h){
+  if(serie.length<2) return `<div class="empty">As barras aparecem a partir da 2ª coleta. Com coleta a cada hora, cada barra = plays naquela hora.</div>`;
+  return `<div class="chart" id="${id}" data-s='${JSON.stringify(serie)}' data-h="${h}"><svg></svg><div class="tip"></div></div>`;
+}
+function drawBars(){
+  const css=getComputedStyle(document.documentElement),C=v=>css.getPropertyValue(v).trim();
+  document.querySelectorAll('.chart').forEach(el=>{
+    const {b,step}=buckets(JSON.parse(el.dataset.s),+el.dataset.h);
+    const svg=el.querySelector('svg'),tip=el.querySelector('.tip');
+    const W=Math.max(300,el.clientWidth),H=240,P={l:48,r:6,t:14,b:28};
+    const max=Math.max(1,...b.map(x=>x.v)), nice=(()=>{const p=10**Math.floor(Math.log10(max)),m=max/p;return (m<=2?2:m<=5?5:10)*p})();
+    const iw=W-P.l-P.r,bw=iw/b.length,gap=Math.min(6,Math.max(2,bw*.22)),Y=v=>H-P.b-v/nice*(H-P.t-P.b);
+    let s=`<defs><linearGradient id="gr${el.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C('--accent')}"/><stop offset="1" stop-color="${C('--accent2')}" stop-opacity=".85"/></linearGradient></defs>`;
+    for(let i=0;i<=4;i++){const v=nice*i/4,y=Y(v);s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y}" y2="${y}" stroke="${C('--line')}"/><text x="${P.l-8}" y="${y+4}" text-anchor="end" font-size="11" fill="${C('--muted')}">${k(v)}</text>`}
+    const every=Math.ceil(b.length/(W/56));
+    b.forEach((x,i)=>{
+      const X=P.l+i*bw+gap/2,w=Math.max(1,bw-gap),y=Y(x.v),hh=H-P.b-y,r=Math.min(4,w/2,hh);
+      if(x.v>0) s+=`<path d="M${X},${H-P.b}V${y+r}q0,-${r} ${r},-${r}h${w-2*r}q${r},0 ${r},${r}V${H-P.b}Z" fill="url(#gr${el.id})" class="bar" data-i="${i}" opacity=".9"/>`;
+      else if(x.has) s+=`<rect x="${X}" y="${H-P.b-2}" width="${w}" height="2" fill="${C('--line')}"/>`;
+      s+=`<rect x="${P.l+i*bw}" y="${P.t}" width="${bw}" height="${H-P.t-P.b}" fill="transparent" data-i="${i}" class="hit"/>`;
+      if(i%every===0){const d=new Date(x.t*1000);s+=`<text x="${X+w/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="${C('--muted')}">${step===86400?d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit'}):String(d.getHours()).padStart(2,'0')+'h'}</text>`}
+    });
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.setAttribute('height',H);svg.innerHTML=s;
+    svg.onmousemove=e=>{const i=e.target.dataset?.i;if(i==null){tip.style.display='none';return}
+      const x=b[i],r=svg.getBoundingClientRect(),d=new Date(x.t*1000),d2=new Date((x.t+step)*1000);
+      svg.querySelectorAll('.bar').forEach(p=>p.setAttribute('opacity',p.dataset.i==i?'1':'.45'));
+      const lbl=step===86400?d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'}):`${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} · ${String(d.getHours()).padStart(2,'0')}h–${String(d2.getHours()).padStart(2,'0')}h`;
+      tip.innerHTML=`<div class="meta">${lbl}</div><b>${x.has?fmt(x.v)+' plays':'sem dados'}</b>`;
+      tip.style.display='block';tip.style.left=((P.l+(+i+.5)*bw)*r.width/W)+'px';tip.style.top=(Y(x.v)*r.height/H)+'px'};
+    svg.onmouseleave=()=>{tip.style.display='none';svg.querySelectorAll('.bar').forEach(p=>p.setAttribute('opacity','.9'))};
+  });
+}
+function lastHourGain(serie){const {b}=buckets(serie,24);const done=b.slice(0,-1).reverse().find(x=>x.has);return done?done.v:null}
+
+function render(){
+  const d=D,app=document.getElementById('app');
+  if(d.vazio){app.innerHTML=`<div class="card c12 empty">Nenhuma coleta ainda. Clique em <b>Coletar agora</b> (leva ~1 minuto).</div>`;return}
+  document.getElementById('coletar').textContent=d.nuvem?'Sincronizar agora':'Coletar agora';
+  document.getElementById('meta').textContent=`última coleta ${dt(d.last_ts)} · ${d.runs} coletas · `+(d.nuvem?`GitHub Actions (${d.repo})`:`automática a cada ${d.intervalo} min`)+(d.status.coletando?' · coletando…':'')+(d.status.erro?' · ERRO: '+d.status.erro:'');
+  document.getElementById('coletar').disabled=d.status.coletando;
+  const lbl=horas>=168?'7 dias':horas+'h', pouco=(Date.now()/1000-d.first_ts)/3600<horas;
+  const mine=d.mine; if(!mine.find(g=>g.id===selId)) selId=mine[0]?.id;
+  const sel=mine.find(g=>g.id===selId), totGain=mine.reduce((a,g)=>a+g.gain,0), maxG=Math.max(1,...mine.map(g=>g.gain));
+  const lh=lastHourGain(d.me.serie), best=mine[0];
+  const cats=Object.keys(d.categorias); if(!cats.includes(cat)) cat=cats[0];
+
+  app.innerHTML=`
+  ${pouco?`<div class="note">Histórico ainda curto: desde ${dt(d.first_ts)}. Os ganhos de ${lbl} vão se completar enquanto o programa ficar aberto.</div>`:''}
+  <div class="sec-title"><h2>Minha conta</h2><span class="meta">@${esc(d.user)}</span></div>
+
+  <div class="card c3"><div class="hero">${d.me.avatar?`<img src="${esc(d.me.avatar)}" alt="">`:''}<div class="kpi"><div class="l">Plays totais</div><div class="v">${k(d.me.total)}</div><div class="d meta">${fmt(d.me.total)}</div></div></div></div>
+  <div class="card c3 kpi"><div class="l">Plays em ${lbl}</div><div class="v ${d.me.gain>0?'up':''}">${d.me.gain>0?'+':''}${fmt(d.me.gain)}</div><div class="d meta">${d.me.gain>0?'≈ '+fmt(d.me.gain/Math.max(1,Math.min(horas,(d.last_ts-d.first_ts)/3600)))+' por hora':'aguardando histórico'}</div></div>
+  <div class="card c3 kpi"><div class="l">Última hora completa</div><div class="v">${lh==null?'–':fmt(lh)}</div><div class="d meta">plays somando todos os jogos</div></div>
+  <div class="card c3 kpi"><div class="l">Seguidores</div><div class="v">${fmt(d.me.followers)}</div><div class="d meta">${mine.length} jogos · ${mine.filter(g=>g.feed.length).length} na home agora</div></div>
+
+  <div class="card c12"><div class="chead"><div><h3>Plays por ${horas>=168?'dia':'hora'} · conta inteira</h3><div class="sub">Diferença de plays totais entre coletas, distribuída por ${horas>=168?'dia':'hora'}</div></div></div>
+    ${barChart('ch-me',d.me.serie,horas)}</div>
+
+  <div class="card c5"><div class="chead"><div><h3>Melhores do meu perfil</h3><div class="sub">Por plays ganhos em ${lbl} · clique para ver o gráfico</div></div></div>
+    <div class="perf">${mine.map((g,i)=>`
+      <div class="prow ${g.id===selId?'sel':''}" data-id="${g.id}">
+        <div class="rk">${i+1}</div><img loading="lazy" src="${esc(g.thumb)}" alt="">
+        <div style="min-width:0"><div class="t">${esc(g.title)}</div>
+          <div class="m"><span>${k(g.plays)} plays</span>${totGain>0?`<span>${Math.round(g.gain/totGain*100)}% do ganho</span>`:''}${g.feed.length?`<span class="tag">na home</span>`:''}</div>
+          <div class="mbar"><i style="width:${g.gain/maxG*100}%"></i></div></div>
+        <div class="r">${gainTxt(g.gain)}<div class="meta">${lbl}</div></div>
+      </div>`).join('')}</div></div>
+
+  <div class="card c7">${sel?`
+    <div class="gdet"><img src="${esc(sel.thumb)}" alt=""><div style="min-width:0"><h3><a href="${gameUrl(sel)}" target="_blank">${esc(sel.title)} ↗</a></h3>
+      <div class="sub">${sel.feed.length?sel.feed.map(f=>`<span class="tag">${esc(f)}</span>`).join(' '):'Fora da home no momento'}</div></div></div>
+    <div class="stats"><div class="stat"><div class="l">Plays</div><div class="v">${fmt(sel.plays)}</div></div><div class="stat"><div class="l">Em ${lbl}</div><div class="v ${sel.gain>0?'up':''}">${sel.gain>0?'+':''}${fmt(sel.gain)}</div></div>
+      <div class="stat"><div class="l">Likes</div><div class="v">${fmt(sel.likes)}</div></div><div class="stat"><div class="l">Shares</div><div class="v">${fmt(sel.shares)}</div></div></div>
+    <h3 style="font-size:13px;margin-bottom:8px">Plays por ${horas>=168?'dia':'hora'}</h3>${barChart('ch-g',sel.serie,horas)}`:'<div class="empty">Nenhum jogo encontrado.</div>'}</div>
+
+  <div class="sec-title"><h2>Mercado</h2><span class="meta">o que está bombando no Astrocade</span></div>
+  <div class="card c6"><div class="chead"><div><h3>Trending agora</h3><div class="sub">Ordem da linha "Discover More" da home</div></div></div>${table(d.trending,true)}</div>
+  <div class="card c6"><div class="chead"><div><h3>Jogos que mais ganharam plays</h3><div class="sub">Em ${lbl}, entre os jogos vistos na home</div></div></div>${table(d.top_games,false)}</div>
+  <div class="card c6"><div class="chead"><div><h3>Criadores em alta</h3><div class="sub">Plays ganhos em ${lbl}</div></div></div><div class="scroll"><table>
+    <tr><th></th><th>Criador</th><th class="n">Ganho</th><th class="n">Total</th><th class="n">Seguid.</th></tr>
+    ${d.top_creators.map((c,i)=>`<tr class="${c.user===d.user?'me':''}"><td class="rk">${i+1}</td><td><div class="g"><img class="av" loading="lazy" src="${esc(c.avatar)}" alt=""><a href="https://www.astrocade.com/profile/${esc(c.user)}" target="_blank">@${esc(c.user)}</a></div></td><td class="n">${gainTxt(c.gain)}</td><td class="n">${k(c.total)}</td><td class="n">${k(c.followers)}</td></tr>`).join('')}
+  </table></div></div>
+  <div class="card c6"><div class="chead"><div><h3>Categorias da home</h3><div class="sub">Ordem atual em cada linha</div></div><select id="selc">${cats.map(c=>`<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select></div>${table(d.categorias[cat]||[],true)}</div>`;
+
+  app.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{selId=r.dataset.id;const y=scrollY;render();scrollTo(0,y)});
+  const sc=document.getElementById('selc');if(sc)sc.onchange=()=>{cat=sc.value;const y=scrollY;render();scrollTo(0,y)};
+  drawBars();
+}
+function table(list,pos){
+  if(!list.length) return '<div class="empty">Sem dados.</div>';
+  return `<div class="scroll"><table><tr><th></th><th>Jogo</th><th class="n">Ganho</th><th class="n">Plays</th></tr>${list.map((g,i)=>`<tr class="${g.user===D.user?'me':''}"><td class="rk">${pos?g.pos:i+1}</td><td><div class="g"><img loading="lazy" src="${esc(g.thumb)}" alt=""><div style="min-width:0"><div class="t"><a href="${gameUrl(g)}" target="_blank">${esc(g.title)}</a></div><div class="u">@${esc(g.user)}</div></div></div></td><td class="n">${gainTxt(g.gain)}</td><td class="n">${k(g.plays)}</td></tr>`).join('')}</table></div>`;
+}
+async function load(){D=await (await fetch('/api/dados?horas='+horas)).json();const y=scrollY;render();scrollTo(0,y)}
+document.getElementById('seg').onclick=e=>{const b=e.target.closest('button');if(!b)return;horas=+b.dataset.h;document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b));load()};
+document.getElementById('coletar').onclick=async()=>{await fetch('/api/coletar');document.getElementById('coletar').disabled=true;document.getElementById('meta').textContent='coletando… (≈1 min)';setTimeout(load,70000)};
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>D&&drawBars(),150)});
+load();setInterval(load,5*60*1000);
+</script>
+</body>
+</html>
