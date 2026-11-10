@@ -2,7 +2,7 @@ name: Coletar Astrocade
 
 on:
   schedule:
-    - cron: "7 * * * *"      # todo hora, no minuto 7 (horário UTC)
+    - cron: "23 * * * *"     # toda hora, no minuto 23 (horário UTC)
   workflow_dispatch:          # botão "Run workflow" para rodar na mão
 
 permissions:
